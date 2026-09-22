@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# local environment and service state
+.env
+.env.*
+!.env.example
+.wrangler/
+.supabase/
+*.log
