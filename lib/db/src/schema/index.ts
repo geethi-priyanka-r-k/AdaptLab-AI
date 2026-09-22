@@ -75,3 +75,35 @@ export const testRunsTable = pgTable("test_runs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
+
+export const testSignalsTable = pgTable("test_signals", {
+  id: uuid("id").primaryKey(),
+  testRunId: uuid("test_run_id").notNull(),
+  configuration: jsonb("configuration").$type<Record<string, unknown>>().notNull(),
+  detected: jsonb("detected").$type<Record<string, unknown>>().notNull(),
+  warnings: jsonb("warnings").$type<string[]>().notNull(),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const testResourcesTable = pgTable("test_resources", {
+  id: uuid("id").primaryKey(),
+  testRunId: uuid("test_run_id").notNull(),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+export const testMetricsTable = pgTable("test_metrics", {
+  id: uuid("id").primaryKey(),
+  testRunId: uuid("test_run_id").notNull(),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+export const testViolationsTable = pgTable("test_violations", {
+  id: uuid("id").primaryKey(),
+  testRunId: uuid("test_run_id").notNull(),
+  evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});

@@ -5,6 +5,12 @@ import type {
   ProjectUpdate,
   TestRunInput,
 } from "@workspace/api-zod";
+import type {
+  BrowserConfiguration,
+  PerformanceEvidence,
+  ResourceEvidence,
+  TestViolation,
+} from "../testing/types";
 
 export type ProjectRecord = {
   id: string;
@@ -45,6 +51,26 @@ export type TestRunRecord = TestRunInput & {
   updatedAt: Date;
 };
 
+export type TestResultRecord = {
+  runId: string;
+  signals: BrowserConfiguration & {
+    detected: {
+      finalUrl: string;
+      title: string;
+      consoleErrors: string[];
+      navigationError: string | null;
+      isMockSut: boolean;
+    };
+  };
+  resources: ResourceEvidence[];
+  metrics: PerformanceEvidence;
+  violations: TestViolation[];
+  warnings: string[];
+  error: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type StoreUser = {
   id: string;
   accessToken: string;
@@ -72,6 +98,13 @@ export interface WorkspaceStore {
   listTestRuns(projectId: string): Promise<TestRunRecord[]>;
   findTestRun(projectId: string, testId: string): Promise<TestRunRecord | undefined>;
   createTestRun(projectId: string, input: TestRunInput): Promise<TestRunRecord>;
+  updateTestRunStatus(
+    projectId: string,
+    testId: string,
+    status: TestRunRecord["status"],
+  ): Promise<TestRunRecord | undefined>;
+  saveTestResult(projectId: string, testId: string, result: Omit<TestResultRecord, "runId" | "createdAt" | "updatedAt">): Promise<TestResultRecord>;
+  getTestResult(projectId: string, testId: string): Promise<TestResultRecord | undefined>;
   getDashboardSummary(): Promise<{
     projectCount: number;
     testRunCount: number;
@@ -127,6 +160,7 @@ class MemoryWorkspaceStore implements WorkspaceStore {
   private readonly projects = new Map<string, ProjectRecord[]>();
   private readonly contracts = new Map<string, ContractRecord>();
   private readonly runs = new Map<string, TestRunRecord[]>();
+  private readonly results = new Map<string, TestResultRecord>();
 
   constructor(private readonly userId: string) {}
 
@@ -170,6 +204,9 @@ class MemoryWorkspaceStore implements WorkspaceStore {
     list.splice(index, 1);
     this.contracts.delete(`${this.userId}:${id}`);
     this.runs.delete(`${this.userId}:${id}`);
+    this.results.forEach((result, key) => {
+      if (key.startsWith(`${this.userId}:${id}:`)) this.results.delete(key);
+    });
     return true;
   }
 
@@ -223,6 +260,35 @@ class MemoryWorkspaceStore implements WorkspaceStore {
     const key = `${this.userId}:${projectId}`;
     this.runs.set(key, [run, ...(this.runs.get(key) ?? [])]);
     return { ...run, configuration: { ...run.configuration } };
+  }
+
+  async updateTestRunStatus(projectId: string, testId: string, status: TestRunRecord["status"]) {
+    const run = (this.runs.get(`${this.userId}:${projectId}`) ?? []).find((item) => item.id === testId);
+    if (!run) return undefined;
+    run.status = status;
+    run.updatedAt = new Date();
+    return { ...run, configuration: { ...run.configuration } };
+  }
+
+  async saveTestResult(
+    projectId: string,
+    testId: string,
+    result: Omit<TestResultRecord, "runId" | "createdAt" | "updatedAt">,
+  ) {
+    const now = new Date();
+    const record: TestResultRecord = {
+      ...result,
+      runId: testId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.results.set(`${this.userId}:${projectId}:${testId}`, record);
+    return structuredClone(record);
+  }
+
+  async getTestResult(projectId: string, testId: string) {
+    const result = this.results.get(`${this.userId}:${projectId}:${testId}`);
+    return result ? structuredClone(result) : undefined;
   }
 
   async getDashboardSummary() {
@@ -343,6 +409,28 @@ function runFromRow(row: SupabaseRow): TestRunRecord {
     status: row.status as TestRunRecord["status"],
     createdAt: dateValue(row.created_at),
     updatedAt: dateValue(row.updated_at),
+  };
+}
+
+function resultFromRows(
+  signal: SupabaseRow | undefined,
+  resources: SupabaseRow[],
+  metrics: SupabaseRow | undefined,
+  violations: SupabaseRow[],
+): TestResultRecord | undefined {
+  if (!signal || !metrics) return undefined;
+  const json = (value: unknown) =>
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return {
+    runId: String(signal.test_run_id),
+    signals: json(signal.configuration) as TestResultRecord["signals"],
+    resources: resources.map((row) => json(row.evidence) as ResourceEvidence),
+    metrics: json(metrics.evidence) as PerformanceEvidence,
+    violations: violations.map((row) => json(row.evidence) as TestViolation),
+    warnings: Array.isArray(signal.warnings) ? (signal.warnings as string[]) : [],
+    error: typeof signal.error === "string" ? signal.error : null,
+    createdAt: dateValue(signal.created_at),
+    updatedAt: dateValue(signal.updated_at),
   };
 }
 
@@ -497,6 +585,79 @@ class SupabaseWorkspaceStore implements WorkspaceStore {
     );
     if (!rows[0]) throw new StoreError("Test configuration was not queued.", 502);
     return runFromRow(rows[0]);
+  }
+
+  async updateTestRunStatus(projectId: string, testId: string, status: TestRunRecord["status"]) {
+    const rows = await this.client.request(
+      "test_runs",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+        headers: { prefer: "return=representation" },
+      },
+      { id: `eq.${testId}`, project_id: `eq.${projectId}`, select: "*" },
+    );
+    return rows[0] ? runFromRow(rows[0]) : undefined;
+  }
+
+  async saveTestResult(
+    projectId: string,
+    testId: string,
+    result: Omit<TestResultRecord, "runId" | "createdAt" | "updatedAt">,
+  ) {
+    await this.client.request(
+      "test_signals",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          test_run_id: testId,
+          configuration: result.signals,
+          detected: result.signals.detected,
+          warnings: result.warnings,
+          error: result.error,
+        }),
+        headers: { prefer: "return=representation,resolution=merge-duplicates" },
+      },
+      { on_conflict: "test_run_id", select: "*" },
+    );
+    if (result.resources.length) {
+      await this.client.request("test_resources", {
+        method: "POST",
+        body: JSON.stringify(
+          result.resources.map((resource) => ({ test_run_id: testId, evidence: resource })),
+        ),
+      });
+    }
+    await this.client.request(
+      "test_metrics",
+      {
+        method: "POST",
+        body: JSON.stringify({ test_run_id: testId, evidence: result.metrics }),
+        headers: { prefer: "return=representation,resolution=merge-duplicates" },
+      },
+      { on_conflict: "test_run_id", select: "*" },
+    );
+    if (result.violations.length) {
+      await this.client.request("test_violations", {
+        method: "POST",
+        body: JSON.stringify(
+          result.violations.map((violation) => ({ test_run_id: testId, evidence: violation })),
+        ),
+      });
+    }
+    const saved = await this.getTestResult(projectId, testId);
+    if (!saved) throw new StoreError("Test results were not persisted.", 502);
+    return saved;
+  }
+
+  async getTestResult(projectId: string, testId: string) {
+    const [signals, resources, metrics, violations] = await Promise.all([
+      this.client.request("test_signals", {}, { test_run_id: `eq.${testId}`, select: "*", limit: "1" }),
+      this.client.request("test_resources", {}, { test_run_id: `eq.${testId}`, select: "evidence", order: "created_at.asc" }),
+      this.client.request("test_metrics", {}, { test_run_id: `eq.${testId}`, select: "*", limit: "1" }),
+      this.client.request("test_violations", {}, { test_run_id: `eq.${testId}`, select: "evidence", order: "created_at.asc" }),
+    ]);
+    return resultFromRows(signals[0], resources, metrics[0], violations);
   }
 
   async getDashboardSummary() {

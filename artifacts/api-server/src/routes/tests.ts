@@ -8,6 +8,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { sendRouteError } from "./route-errors";
 import { getWorkspaceStore } from "../services/workspace-store";
+import { executeTestRun } from "../testing/test-orchestrator";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -51,7 +52,64 @@ router.post("/projects/:id/tests", async (req, res) => {
       res.status(404).json({ error: "Project not found" });
       return;
     }
-    res.status(201).json(await store.createTestRun(params.data.id, body.data));
+    const run = await store.createTestRun(params.data.id, body.data);
+    const configuration = run.configuration;
+    const shouldExecute =
+      process.env.NODE_ENV !== "test" || configuration.mockSut === true || typeof configuration.mockSut === "string";
+    if (shouldExecute) {
+      const contract = await store.getContract(params.data.id);
+      if (!contract) {
+        await store.updateTestRunStatus(params.data.id, run.id, "failed");
+        await store.saveTestResult(params.data.id, run.id, {
+          signals: {
+            requestedProfile: run.profile,
+            network: {
+              name: "not applied",
+              applied: false,
+              mechanism: "not applied",
+              downloadThroughputBps: null,
+              uploadThroughputBps: null,
+              latencyMs: null,
+            },
+            device: {
+              name: "desktop",
+              viewport: { width: 1440, height: 900 },
+              userAgent: null,
+              deviceClass: "desktop",
+              hardwareConcurrency: null,
+              deviceMemoryGb: null,
+            },
+            detected: {
+              finalUrl: (await store.findProject(params.data.id))?.applicationUrl ?? "",
+              title: "",
+              consoleErrors: [],
+              navigationError: "Adaptive contract is required before a test can run.",
+              isMockSut: Boolean(configuration.mockSut),
+            },
+          },
+          resources: [],
+          metrics: {
+            fcpMs: null,
+            lcpMs: null,
+            cls: null,
+            navigation: null,
+            resourceCount: 0,
+            javascriptTransferBytes: null,
+            imageTransferBytes: null,
+            totalTransferBytes: null,
+          },
+          violations: [],
+          warnings: [],
+          error: "Adaptive contract is required before a test can run.",
+        });
+      } else {
+        const project = await store.findProject(params.data.id);
+        if (project) {
+          void executeTestRun(store, project, run, contract);
+        }
+      }
+    }
+    res.status(201).json(run);
   } catch (error) {
     sendRouteError(res, error);
   }
@@ -72,7 +130,8 @@ router.get("/projects/:id/tests/:testId", async (req, res) => {
       res.status(404).json({ error: "Test run not found" });
       return;
     }
-    res.json(testRun);
+    const result = await getWorkspaceStore(req.user!).getTestResult(params.data.id, params.data.testId);
+    res.json({ ...testRun, result: result ?? null });
   } catch (error) {
     sendRouteError(res, error);
   }
