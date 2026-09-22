@@ -1,20 +1,77 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
-export {}
+export const profilesTable = pgTable("profiles", {
+  id: uuid("id").primaryKey(),
+  displayName: text("display_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const projectsTable = pgTable("projects", {
+  id: uuid("id").primaryKey(),
+  ownerId: uuid("owner_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  applicationType: text("application_type").notNull(),
+  applicationUrl: text("application_url").notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const projectSettingsTable = pgTable("project_settings", {
+  projectId: uuid("project_id").primaryKey(),
+  defaultTimeoutMs: integer("default_timeout_ms").notNull(),
+  notificationsEnabled: boolean("notifications_enabled").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const adaptiveContractsTable = pgTable("adaptive_contracts", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull(),
+  profile: text("profile").notNull(),
+  networkProfile: text("network_profile").notNull(),
+  imagePolicy: text("image_policy").notNull(),
+  javascriptPolicy: text("javascript_policy").notNull(),
+  featurePolicy: text("feature_policy").notNull(),
+  maxResourceSizeKb: integer("max_resource_size_kb").notNull(),
+  maxLcpMs: integer("max_lcp_ms").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const testProfilesTable = pgTable("test_profiles", {
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  networkProfile: text("network_profile").notNull(),
+  imagePolicy: text("image_policy").notNull(),
+  javascriptPolicy: text("javascript_policy").notNull(),
+  featurePolicy: text("feature_policy").notNull(),
+  maxResourceSizeKb: integer("max_resource_size_kb").notNull(),
+  maxLcpMs: integer("max_lcp_ms").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+export const testRunsTable = pgTable("test_runs", {
+  id: uuid("id").primaryKey(),
+  projectId: uuid("project_id").notNull(),
+  profile: text("profile").notNull(),
+  method: text("method").notNull(),
+  configuration: jsonb("configuration")
+    .$type<Record<string, unknown>>()
+    .notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

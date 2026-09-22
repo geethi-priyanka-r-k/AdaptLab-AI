@@ -37,6 +37,8 @@ paths:
       operationId: getDashboardSummary
       tags: [dashboard]
       summary: Get dashboard summary
+      security:
+        - BearerAuth: []
       description: Returns the current project and testing summary for the workspace
       responses:
         "200":
@@ -50,6 +52,8 @@ paths:
       operationId: listProjects
       tags: [projects]
       summary: List projects
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: Projects
@@ -63,6 +67,8 @@ paths:
       operationId: createProject
       tags: [projects]
       summary: Create a project
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -83,6 +89,8 @@ paths:
       operationId: getProject
       tags: [projects]
       summary: Get a project
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -102,6 +110,8 @@ paths:
       operationId: updateProject
       tags: [projects]
       summary: Update a project
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -127,6 +137,8 @@ paths:
       operationId: deleteProject
       tags: [projects]
       summary: Delete a project
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -143,6 +155,8 @@ paths:
       operationId: getAdaptiveContract
       tags: [contracts]
       summary: Get a project's adaptive contract
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -162,6 +176,8 @@ paths:
       operationId: upsertAdaptiveContract
       tags: [contracts]
       summary: Create or update a project's adaptive contract
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -190,6 +206,8 @@ paths:
       operationId: listTestProfiles
       tags: [tests]
       summary: List reusable test profiles
+      security:
+        - BearerAuth: []
       responses:
         "200":
           description: Reusable test profiles
@@ -204,6 +222,8 @@ paths:
       operationId: listTestRuns
       tags: [tests]
       summary: List a project's test runs
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -225,6 +245,8 @@ paths:
       operationId: createTestRun
       tags: [tests]
       summary: Queue a test run
+      security:
+        - BearerAuth: []
       description: Creates a queued test run without executing a browser test
       parameters:
         - name: id
@@ -254,6 +276,8 @@ paths:
       operationId: getTestRun
       tags: [tests]
       summary: Get a test run
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -275,6 +299,11 @@ paths:
         "404":
           description: Test run not found
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object

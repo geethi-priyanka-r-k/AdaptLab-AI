@@ -2,6 +2,7 @@ import { Activity, ChevronDown, CircleHelp, Gauge, LayoutGrid, LogOut, PanelLeft
 import { Link, useLocation } from 'wouter';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { useAuth } from '@/lib/auth-context';
 
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: Gauge },
@@ -22,6 +23,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { session, signOut } = useAuth();
   const projectMatch = location.match(/^\/projects\/([^/]+)$/);
   return <div className="flex min-h-[100dvh] bg-[#f4f7f8]">
     <aside className={`fixed inset-y-0 left-0 z-30 flex w-[252px] flex-col bg-[hsl(var(--sidebar))] px-4 py-5 transition-transform md:static md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="sidebar-navigation">
@@ -44,9 +46,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mt-2 font-mono text-[10px] text-slate-500">eu-west-1 / stable</div>
         </div>
         <div className="flex items-center gap-3 border-t border-slate-700/70 px-2 pt-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#29505e] text-[11px] font-semibold text-[#a8eee2]">MR</div>
-          <div className="min-w-0 flex-1"><div className="truncate text-xs font-medium text-slate-200">Mara Rivera</div><div className="truncate text-[10px] text-slate-500">Platform engineering</div></div>
-          <button onClick={() => { window.localStorage.removeItem('adaptlab_session'); setLocation('/login'); }} className="text-slate-500 hover:text-slate-200" aria-label="Sign out" data-testid="button-sign-out"><LogOut size={15}/></button>
+           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#29505e] text-[11px] font-semibold text-[#a8eee2]">{(session?.user.user_metadata?.display_name ?? session?.user.email ?? 'U').slice(0, 2).toUpperCase()}</div>
+           <div className="min-w-0 flex-1"><div className="truncate text-xs font-medium text-slate-200">{session?.user.user_metadata?.display_name ?? session?.user.email ?? 'Workspace user'}</div><div className="truncate text-[10px] text-slate-500">Workspace member</div></div>
+           <button onClick={() => void signOut().then(() => setLocation('/login'))} className="text-slate-500 hover:text-slate-200" aria-label="Sign out" data-testid="button-sign-out"><LogOut size={15}/></button>
         </div>
       </div>
     </aside>

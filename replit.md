@@ -1,6 +1,6 @@
-# [Project name]
+# AdaptLab AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+AdaptLab AI maps external systems under test and stores Phase 2 resilience configuration.
 
 ## Run & Operate
 
@@ -9,7 +9,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env for live Phase 2 persistence/auth: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 ## Stack
 
@@ -22,11 +22,17 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/adaptlab-ai/src/lib/supabase-auth.ts` — browser Supabase Auth session client
+- `artifacts/api-server/src/middlewares/auth.ts` — bearer-token verification and ownership identity
+- `artifacts/api-server/src/services/workspace-store.ts` — authenticated persistence service with Supabase REST and test adapter
+- `lib/api-spec/openapi.yaml` — API contract source of truth
+- `supabase/migrations/` — Supabase PostgreSQL schema and RLS source of truth
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Supabase Auth access tokens are verified by the API through Supabase Auth, and every data request uses the same bearer token against PostgREST so RLS remains authoritative.
+- The process-memory adapter is enabled only when `NODE_ENV=test`; production/development without Supabase configuration fails explicitly instead of silently losing data.
+- Phase 2 remains configuration-only: test runs are created as `queued` records and no browser execution or result fabrication is performed.
 
 ## Product
 

@@ -4,36 +4,38 @@ import {
   UpsertAdaptiveContractBody,
   UpsertAdaptiveContractParams,
 } from "@workspace/api-zod";
-import { findProject } from "./project-store";
-import {
-  getContractRecord,
-  saveContractRecord,
-} from "./contract-store";
+import { requireAuth } from "../middlewares/auth";
+import { sendRouteError } from "./route-errors";
+import { getWorkspaceStore } from "../services/workspace-store";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
-router.get("/projects/:id/contract", (req, res) => {
+router.get("/projects/:id/contract", async (req, res) => {
   const params = GetAdaptiveContractParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Invalid project id" });
     return;
   }
 
-  if (!findProject(params.data.id)) {
-    res.status(404).json({ error: "Project not found" });
-    return;
+  try {
+    const store = getWorkspaceStore(req.user!);
+    if (!(await store.findProject(params.data.id))) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    const contract = await store.getContract(params.data.id);
+    if (!contract) {
+      res.status(404).json({ error: "Adaptive contract not configured" });
+      return;
+    }
+    res.json(contract);
+  } catch (error) {
+    sendRouteError(res, error);
   }
-
-  const contract = getContractRecord(params.data.id);
-  if (!contract) {
-    res.status(404).json({ error: "Adaptive contract not configured" });
-    return;
-  }
-
-  res.json(contract);
 });
 
-router.put("/projects/:id/contract", (req, res) => {
+router.put("/projects/:id/contract", async (req, res) => {
   const params = UpsertAdaptiveContractParams.safeParse(req.params);
   const body = UpsertAdaptiveContractBody.safeParse(req.body);
   if (!params.success || !body.success) {
@@ -41,12 +43,16 @@ router.put("/projects/:id/contract", (req, res) => {
     return;
   }
 
-  if (!findProject(params.data.id)) {
-    res.status(404).json({ error: "Project not found" });
-    return;
+  try {
+    const store = getWorkspaceStore(req.user!);
+    if (!(await store.findProject(params.data.id))) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    res.json(await store.saveContract(params.data.id, body.data));
+  } catch (error) {
+    sendRouteError(res, error);
   }
-
-  res.json(saveContractRecord(params.data.id, body.data));
 });
 
 export default router;

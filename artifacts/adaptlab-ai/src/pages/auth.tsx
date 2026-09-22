@@ -2,20 +2,42 @@ import { ArrowRight, Check, LockKeyhole, Mail, ShieldCheck, TerminalSquare } fro
 import { FormEvent, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Logo } from '@/components/app-shell';
+import { useAuth } from '@/lib/auth-context';
 
 export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const [, setLocation] = useLocation();
+  const { signIn, signUp, isConfigured } = useAuth();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const submit = (event: FormEvent) => {
+  const [error, setError] = useState('');
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    window.localStorage.setItem(
-      'adaptlab_session',
-      JSON.stringify({ email, name: name || email.split('@')[0] }),
-    );
+    setError('');
+    if (!isConfigured) {
+      setError('Authentication is not configured for this workspace.');
+      return;
+    }
     setSubmitted(true);
-    setTimeout(() => setLocation('/dashboard'), 450);
+    try {
+      if (signup) {
+        const result = await signUp(email, password, name);
+        if (result.confirmationRequired) {
+          setError('Check your email to confirm your account, then sign in.');
+          setSubmitted(false);
+          return;
+        }
+      } else {
+        await signIn(email, password);
+      }
+      setLocation('/dashboard');
+    } catch (authError) {
+      setError(
+        authError instanceof Error ? authError.message : 'Authentication failed.',
+      );
+      setSubmitted(false);
+    }
   };
   const signup = mode === 'signup';
   return <div className="min-h-[100dvh] bg-[#112433] text-white">
@@ -39,7 +61,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
           <form onSubmit={submit} className="space-y-4">
             {signup && <label className="block"><span className="mb-2 block text-xs font-medium text-slate-300">Your name</span><input autoComplete="name" value={name} onChange={e => setName(e.target.value)} required className="h-11 w-full rounded-md border border-[#34515d] bg-[#172f3e] px-3 text-sm text-white outline-none transition focus:border-[#52d8c2] focus:ring-2 focus:ring-[#52d8c2]/15" placeholder="Mara Rivera" data-testid="input-name"/></label>}
             <label className="block"><span className="mb-2 block text-xs font-medium text-slate-300">Work email</span><div className="relative"><Mail size={16} className="absolute left-3 top-3.5 text-slate-500"/><input autoComplete="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="h-11 w-full rounded-md border border-[#34515d] bg-[#172f3e] pl-10 pr-3 text-sm text-white outline-none transition focus:border-[#52d8c2] focus:ring-2 focus:ring-[#52d8c2]/15" placeholder="you@company.com" data-testid="input-email"/></div></label>
-            <label className="block"><span className="mb-2 block text-xs font-medium text-slate-300">{signup ? 'Create password' : 'Password'}</span><div className="relative"><LockKeyhole size={16} className="absolute left-3 top-3.5 text-slate-500"/><input autoComplete={signup ? 'new-password' : 'current-password'} type="password" required className="h-11 w-full rounded-md border border-[#34515d] bg-[#172f3e] pl-10 pr-3 text-sm text-white outline-none transition focus:border-[#52d8c2] focus:ring-2 focus:ring-[#52d8c2]/15" placeholder="••••••••••" data-testid="input-password"/></div></label>
+             <label className="block"><span className="mb-2 block text-xs font-medium text-slate-300">{signup ? 'Create password' : 'Password'}</span><div className="relative"><LockKeyhole size={16} className="absolute left-3 top-3.5 text-slate-500"/><input autoComplete={signup ? 'new-password' : 'current-password'} type="password" required value={password} onChange={e => setPassword(e.target.value)} className="h-11 w-full rounded-md border border-[#34515d] bg-[#172f3e] pl-10 pr-3 text-sm text-white outline-none transition focus:border-[#52d8c2] focus:ring-2 focus:ring-[#52d8c2]/15" placeholder="••••••••••" data-testid="input-password"/></div></label>
+             {error && <div className="rounded-md border border-[#8f4e54] bg-[#4b2d38] px-3 py-2 text-xs leading-5 text-[#ffd5d5]" role="alert" data-testid="error-auth">{error}</div>}
             <button disabled={submitted} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#43cbb5] text-sm font-semibold text-[#112433] transition hover:bg-[#67dec9] disabled:opacity-70" data-testid="button-submit-auth">{submitted ? 'Opening workspace…' : signup ? 'Create workspace' : 'Sign in'} {!submitted && <ArrowRight size={16}/>}</button>
           </form>
           <div className="mt-8 border-t border-white/10 pt-6 text-center text-sm text-slate-400">{signup ? 'Already have a workspace?' : 'New to AdaptLab?'} <Link href={signup ? '/login' : '/signup'} className="font-medium text-[#5fe3cb] hover:text-white" data-testid="link-auth-switch">{signup ? 'Sign in' : 'Create an account'}</Link></div>

@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { AppShell, Logo } from '@/components/app-shell';
 import { AuthPage } from '@/pages/auth';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { DashboardPage, ProjectDetailsPage, ProjectsPage, SettingsPage } from '@/pages/app-pages';
 import { ContractPage, NewTestRunPage, TestRunsPage } from '@/pages/phase-two-pages';
 import { ArrowRight, Activity, CheckCircle2, ShieldCheck, TerminalSquare } from 'lucide-react';
@@ -20,18 +21,16 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
-  const hasSession =
-    typeof window !== 'undefined' &&
-    Boolean(window.localStorage.getItem('adaptlab_session'));
+  const { session, isLoading } = useAuth();
 
   useEffect(() => {
-    if (!hasSession) setLocation('/login');
-  }, [hasSession, setLocation]);
+    if (!isLoading && !session) setLocation('/login');
+  }, [isLoading, session, setLocation]);
 
-  if (!hasSession) {
+  if (isLoading || !session) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f4f7f8] text-sm text-[#6b8089]">
-        Redirecting to sign in…
+        {isLoading ? 'Loading workspace…' : 'Redirecting to sign in…'}
       </div>
     );
   }
@@ -79,14 +78,16 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AuthProvider>
   );
 }
 
